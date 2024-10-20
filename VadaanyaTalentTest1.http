@@ -1,0 +1,6 @@
+@VadaanyaTalentTest1_HostAddress = http://localhost:5225
+
+GET {{VadaanyaTalentTest1_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
