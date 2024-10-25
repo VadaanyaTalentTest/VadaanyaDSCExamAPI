@@ -9,9 +9,6 @@ using System.Net.Mail;
 using Twilio;
 using Twilio.Rest.Api.V2010.Account;
 using Twilio.Types;
-using Npgsql;
-using System.Data;
-using System.Windows.Input;
 
 namespace VadaanyaTalentTest1.Controllers
 {
@@ -20,49 +17,31 @@ namespace VadaanyaTalentTest1.Controllers
     public class StudentDetailsController : ControllerBase
     {
         private readonly ILogger<StudentDetailsController> _logger;
-        private readonly IConfiguration _configuration;
         private readonly List<StudentDetails> _studentDetails = new List<StudentDetails>();
 
-        public StudentDetailsController(ILogger<StudentDetailsController> logger, IConfiguration configuration)
+        public StudentDetailsController(ILogger<StudentDetailsController> logger)
         {
             _logger = logger;
-            _configuration = configuration;
         }
 
         [HttpGet("{studentId}")]
         public ActionResult<StudentDetails> Get(long studentId)
         {
-            var student = GetStudentFromExcel(studentId, null, null);
+            var student = GetStudentFromExcel(studentId);
             if (student == null)
             {
                 return NotFound();
             }
             return Ok(student);
-
-        }
-
-        [HttpGet]
-        public ActionResult<StudentDetails> Get([FromQuery] long aadhaarNumber, [FromQuery] string mobileNumber, [FromQuery] string email)
-        {
-            var student = GetStudentFromDatabase(aadhaarNumber, mobileNumber, email);
-            if (student == null)
-            {
-                return NotFound();
-            }
-            return Ok(student);
-
 
         }
 
         [HttpPost]
         public ActionResult<StudentDetails> Post(StudentDetails student)
         {
-            if (String.IsNullOrEmpty(student.testScore)) student.testScore = "0";
-
             _studentDetails.Add(student);
             AddStudentToExcel(student);
-            AddStudentToDatabase(student);
-            //SendEmail(student);
+            SendEmail(student);
             //SendWhatsAppMessage(student);
             return Ok(student);
         }
@@ -91,8 +70,6 @@ namespace VadaanyaTalentTest1.Controllers
                     worksheet.Cells[1, 7].Value = "Mandal";
                     worksheet.Cells[1, 8].Value = "Dob";
                     worksheet.Cells[1, 9].Value = "Email";
-                    worksheet.Cells[1, 10].Value = "TetScore";
-                    worksheet.Cells[1, 11].Value = "Category";
                 }
 
                 int row = worksheet.Dimension?.Rows + 1 ?? 2;
@@ -105,14 +82,12 @@ namespace VadaanyaTalentTest1.Controllers
                 worksheet.Cells[row, 7].Value = student.mandal;
                 worksheet.Cells[row, 8].Value = student.dob;
                 worksheet.Cells[row, 9].Value = student.email;
-                worksheet.Cells[row, 10].Value = student.testScore;
-                worksheet.Cells[row, 11].Value = student.caste;
 
                 package.Save();
             }
         }
 
-        private StudentDetails GetStudentFromExcel(long studentId, string mobileNumber, string email)
+        private StudentDetails GetStudentFromExcel(long studentId)
         {
             var filePath = "StudentDetails.xlsx";
             FileInfo fileInfo = new FileInfo(filePath);
@@ -145,8 +120,6 @@ namespace VadaanyaTalentTest1.Controllers
                             mandal = worksheet.Cells[row, 7].GetValue<string>(),
                             dob = worksheet.Cells[row, 8].GetValue<string>(),
                             email = worksheet.Cells[row, 9].GetValue<string>(),
-                            testScore = worksheet.Cells[row, 10].GetValue<string>(),
-                            caste = worksheet.Cells[row, 11].GetValue<string>(),
                         };
                     }
                 }
@@ -157,9 +130,9 @@ namespace VadaanyaTalentTest1.Controllers
 
         private void SendEmail(StudentDetails student)
         {
-            var fromAddress = new MailAddress(_configuration["EmailSettings:FromAddress"], "VadaanyaOrg");
+            var fromAddress = new MailAddress("vadaanyatrial@gmail.com", "VadaanyaOrg");
             var toAddress = new MailAddress(student.email, student.studentName);
-            var fromPassword = _configuration["EmailSettings:Password"];
+            const string fromPassword = "nfqqnwwveyaeebgy";
             const string subject = "Student Details Submission Confirmation";
             string body = $"Dear {student.studentName},\n\nYour details have been successfully stored.\n\nBest regards,\nVadaanyaTalentTest";
 
@@ -183,123 +156,21 @@ namespace VadaanyaTalentTest1.Controllers
             }
         }
 
-        /* private void SendWhatsAppMessage(StudentDetails student)
-         {
-             const string accountSid = "";
-             const string authToken = "";
-
-             TwilioClient.Init(accountSid, authToken);
-
-             var message = MessageResource.Create(
-                 body: $"Dear {student.Name},\n\nYour details have been successfully stored.\n\nBest regards,\nVadaanyaTalentTest",
-                 from: new PhoneNumber("whatsapp:+14155238886"),
-                 to: new PhoneNumber($"whatsapp:{student.PhoneNumber}")
-             );
-
-             _logger.LogInformation($"WhatsApp message sent to {student.PhoneNumber}: {message.Sid}");
-         }*/
-
-        private void AddStudentToDatabase(StudentDetails student)
+       /* private void SendWhatsAppMessage(StudentDetails student)
         {
-            var connectionString = _configuration["ConnectionStrings:DefaultConnection"];
+            const string accountSid = "";
+            const string authToken = "";
 
-            using (var connection = new NpgsqlConnection(connectionString))
-            {
-                connection.Open();
+            TwilioClient.Init(accountSid, authToken);
 
-                using (var command = new NpgsqlCommand("INSERT INTO StudentDetails (aadhaarNumber, studentName, fatherName, gender, mobileNumber, district, mandal, dob, email,tetscore,category) VALUES (@aadhaarNumber, @studentName, @fatherName, @gender, @mobileNumber, @district, @mandal, @dob, @email,@tetscore,@category)", connection))
-                {
-                    command.Parameters.AddWithValue("aadhaarNumber", student.aadhaarNumber);
-                    command.Parameters.AddWithValue("studentName", student.studentName);
-                    command.Parameters.AddWithValue("fatherName", student.fatherName);
-                    command.Parameters.AddWithValue("gender", student.gender);
-                    command.Parameters.AddWithValue("mobileNumber", student.mobileNumber);
-                    command.Parameters.AddWithValue("district", student.district);
-                    command.Parameters.AddWithValue("mandal", student.mandal);
-                    command.Parameters.AddWithValue("dob", student.dob);
-                    command.Parameters.AddWithValue("email", student.email);
-                    command.Parameters.AddWithValue("tetscore", student.testScore);
-                    command.Parameters.AddWithValue("category", student.caste);
+            var message = MessageResource.Create(
+                body: $"Dear {student.Name},\n\nYour details have been successfully stored.\n\nBest regards,\nVadaanyaTalentTest",
+                from: new PhoneNumber("whatsapp:+14155238886"),
+                to: new PhoneNumber($"whatsapp:{student.PhoneNumber}")
+            );
 
-
-                    command.ExecuteNonQuery();
-                }
-            }
-        }
-
-        private StudentDetails GetStudentFromDatabase(long aadhaarNumber, string mobileNumber, string email)
-        {
-            var connectionString = _configuration.GetConnectionString("DefaultConnection");
-
-            string dbcommand;
-            string initialdbcommand = "SELECT aadhaarNumber, studentName, fatherName, gender, mobileNumber, district, mandal, dob, email, tetscore, category FROM StudentDetails WHERE ";
-            if (aadhaarNumber != 0 && String.IsNullOrEmpty(mobileNumber) && String.IsNullOrEmpty(email))
-            {
-                dbcommand = initialdbcommand + "aadhaarNumber = @aadhaarNumber";
-            }
-            else if (!String.IsNullOrEmpty(mobileNumber) && String.IsNullOrEmpty(email))
-            {
-                dbcommand = initialdbcommand + "mobileNumber = @mobileNumber";
-            }
-            else if (String.IsNullOrEmpty(mobileNumber) && !String.IsNullOrEmpty(email))
-            {
-                dbcommand = initialdbcommand + "email = @email";
-            }
-            else
-            {
-                dbcommand = initialdbcommand + "aadhaarNumber = @aadhaarNumber OR mobileNumber = @mobileNumber OR email = @Email";
-            }
-
-            using (var connection = new NpgsqlConnection(connectionString))
-            {
-                connection.Open();
-
-                using (var command = new NpgsqlCommand(dbcommand, connection))
-                {
-                    if (aadhaarNumber != 0 && String.IsNullOrEmpty(mobileNumber) && String.IsNullOrEmpty(email))
-                    {
-                        command.Parameters.AddWithValue("aadhaarNumber", aadhaarNumber);
-                    }
-                    else if (!String.IsNullOrEmpty(mobileNumber) && String.IsNullOrEmpty(email))
-                    {
-                        command.Parameters.AddWithValue("mobileNumber", mobileNumber);
-                    }
-                    else if (String.IsNullOrEmpty(mobileNumber) && !String.IsNullOrEmpty(email))
-                    {
-                        command.Parameters.AddWithValue("email", email);
-                    }
-                    else
-                    {
-                        command.Parameters.AddWithValue("aadhaarNumber", aadhaarNumber);
-                        command.Parameters.AddWithValue("mobileNumber", mobileNumber);
-                        command.Parameters.AddWithValue("email", email);
-                    }
-
-                    using (var reader = command.ExecuteReader())
-                    {
-                        if (reader.Read())
-                        {
-                            return new StudentDetails
-                            {
-                                aadhaarNumber = reader.GetInt64(0),
-                                studentName = reader.GetString(1),
-                                fatherName = reader.GetString(2),
-                                gender = reader.GetString(3),
-                                mobileNumber = reader.GetString(4),
-                                district = reader.GetString(5),
-                                mandal = reader.GetString(6),
-                                dob = reader.GetString(7),
-                                email = reader.GetString(8),
-                                testScore = reader.IsDBNull(9) ? null : reader.GetString(9),
-                                caste = reader.GetString(10)
-                            };
-                        }
-                    }
-                }
-            }
-
-            return null;
-        }
+            _logger.LogInformation($"WhatsApp message sent to {student.PhoneNumber}: {message.Sid}");
+        }*/
     }
 }
 
