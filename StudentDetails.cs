@@ -25,6 +25,7 @@ namespace VadaanyaTalentTest1
         [Required]
         public string mandal { get; set; }
         public string testScore { get; set; }
+        public long applicationNumber { get; set; }
 
         [Required]
         public string dob { get; set; }

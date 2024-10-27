@@ -21,24 +21,12 @@ namespace VadaanyaTalentTest1.Controllers
     {
         private readonly ILogger<StudentDetailsController> _logger;
         private readonly IConfiguration _configuration;
-        private readonly List<StudentDetails> _studentDetails = new List<StudentDetails>();
+        private readonly static List<StudentDetails> _studentDetails = new List<StudentDetails>();
 
         public StudentDetailsController(ILogger<StudentDetailsController> logger, IConfiguration configuration)
         {
             _logger = logger;
             _configuration = configuration;
-        }
-
-        [HttpGet("{studentId}")]
-        public ActionResult<StudentDetails> Get(long studentId)
-        {
-            var student = GetStudentFromExcel(studentId, null, null);
-            if (student == null)
-            {
-                return NotFound();
-            }
-            return Ok(student);
-
         }
 
         [HttpGet]
@@ -57,111 +45,37 @@ namespace VadaanyaTalentTest1.Controllers
         [HttpPost]
         public ActionResult<StudentDetails> Post(StudentDetails student)
         {
+            int studentCount = GetStudentCountFromDatabase();
+            if (studentCount >= Convert.ToInt32(_configuration["StudentLimit"]))
+            {
+                return StatusCode(403, "Student limit reached. Cannot add more students.");
+            }
+
             if (String.IsNullOrEmpty(student.testScore)) student.testScore = "0";
 
+            // Check if the student already exists in the database
+            var existingStudent = GetStudentFromDatabase(student.aadhaarNumber, student.mobileNumber, student.email);
+            if (existingStudent != null)
+            {
+                return Conflict("Student with the same Aadhaar number, mobile number, or email already exists.");
+            }
+
+            student.applicationNumber = 2912240000 + _studentDetails.Count+1;
             _studentDetails.Add(student);
-            AddStudentToExcel(student);
-            AddStudentToDatabase(student);
-            //SendEmail(student);
-            //SendWhatsAppMessage(student);
+            //AddStudentToDatabase(student);
+            // Send email asynchronously without waiting for it
+            SendEmail(student);
             return Ok(student);
-        }
-
-        private void AddStudentToExcel(StudentDetails student)
-        {
-            var filePath = "StudentDetails.xlsx";
-            FileInfo fileInfo = new FileInfo(filePath);
-
-            using (ExcelPackage package = new ExcelPackage(fileInfo))
-            {
-                ExcelWorksheet worksheet;
-                if (fileInfo.Exists)
-                {
-                    worksheet = package.Workbook.Worksheets[0];
-                }
-                else
-                {
-                    worksheet = package.Workbook.Worksheets.Add("StudentDetails");
-                    worksheet.Cells[1, 1].Value = "AadhaarNumber";
-                    worksheet.Cells[1, 2].Value = "StudentName";
-                    worksheet.Cells[1, 3].Value = "FatherName";
-                    worksheet.Cells[1, 4].Value = "Gender";
-                    worksheet.Cells[1, 5].Value = "MobileNumber";
-                    worksheet.Cells[1, 6].Value = "District";
-                    worksheet.Cells[1, 7].Value = "Mandal";
-                    worksheet.Cells[1, 8].Value = "Dob";
-                    worksheet.Cells[1, 9].Value = "Email";
-                    worksheet.Cells[1, 10].Value = "TetScore";
-                    worksheet.Cells[1, 11].Value = "Category";
-                }
-
-                int row = worksheet.Dimension?.Rows + 1 ?? 2;
-                worksheet.Cells[row, 1].Value = student.aadhaarNumber;
-                worksheet.Cells[row, 2].Value = student.studentName;
-                worksheet.Cells[row, 3].Value = student.fatherName;
-                worksheet.Cells[row, 4].Value = student.gender;
-                worksheet.Cells[row, 5].Value = student.mobileNumber;
-                worksheet.Cells[row, 6].Value = student.district;
-                worksheet.Cells[row, 7].Value = student.mandal;
-                worksheet.Cells[row, 8].Value = student.dob;
-                worksheet.Cells[row, 9].Value = student.email;
-                worksheet.Cells[row, 10].Value = student.testScore;
-                worksheet.Cells[row, 11].Value = student.caste;
-
-                package.Save();
-            }
-        }
-
-        private StudentDetails GetStudentFromExcel(long studentId, string mobileNumber, string email)
-        {
-            var filePath = "StudentDetails.xlsx";
-            FileInfo fileInfo = new FileInfo(filePath);
-
-            if (!fileInfo.Exists)
-            {
-                return null;
-            }
-
-            using (ExcelPackage package = new ExcelPackage(fileInfo))
-            {
-                ExcelWorksheet worksheet = package.Workbook.Worksheets[0];
-                if (worksheet == null)
-                {
-                    return null;
-                }
-
-                for (int row = 2; row <= worksheet.Dimension.Rows; row++)
-                {
-                    if (worksheet.Cells[row, 1].GetValue<long>() == studentId)
-                    {
-                        return new StudentDetails
-                        {
-                            aadhaarNumber = worksheet.Cells[row, 1].GetValue<long>(),
-                            studentName = worksheet.Cells[row, 2].GetValue<string>(),
-                            fatherName = worksheet.Cells[row, 3].GetValue<string>(),
-                            gender = worksheet.Cells[row, 4].GetValue<string>(),
-                            mobileNumber = worksheet.Cells[row, 5].GetValue<string>(),
-                            district = worksheet.Cells[row, 5].GetValue<string>(),
-                            mandal = worksheet.Cells[row, 7].GetValue<string>(),
-                            dob = worksheet.Cells[row, 8].GetValue<string>(),
-                            email = worksheet.Cells[row, 9].GetValue<string>(),
-                            testScore = worksheet.Cells[row, 10].GetValue<string>(),
-                            caste = worksheet.Cells[row, 11].GetValue<string>(),
-                        };
-                    }
-                }
-            }
-
-            return null;
         }
 
         private void SendEmail(StudentDetails student)
         {
-            var fromAddress = new MailAddress("vadaanyatrial@gmail.com", "VadaanyaOrg");
+            var fromAddress = new MailAddress(_configuration["EmailSettings:FromAddress"], "VadaanyaOrg");
             var toAddress = new MailAddress(student.email, student.studentName);
-            const string fromPassword = "nfqqnwwveyaeebgy";
+            var fromPassword = _configuration["EmailSettings:Password"];
             const string subject = "Student Details Submission Confirmation";
-            string body = $"Dear {student.studentName},\n\nYour details have been successfully stored.\n\nBest regards,\nVadaanyaTalentTest";
+            string body = GetEmailbody(student);
+            //string body = $"Dear { student.studentName},\n\nThank you for registering for Vadaanya’s DSC Talent Test 2024.\n Your application number is {student.applicationNumber}.\n\n******This is an auto-generated mail. Kindly do not reply to this email.*******\nKindly reach out to vadaanyadsc2024@gmail.com for any concerns.\n\nBest regards,\nTeam Vadaanya";
 
             var smtp = new SmtpClient
             {
@@ -176,28 +90,13 @@ namespace VadaanyaTalentTest1.Controllers
             using (var message = new MailMessage(fromAddress, toAddress)
             {
                 Subject = subject,
-                Body = body
+                Body = body,
+                IsBodyHtml = true // Enable HTML formatting
             })
             {
-                smtp.Send(message);
+                smtp.Send(message); ;
             }
         }
-
-        /* private void SendWhatsAppMessage(StudentDetails student)
-         {
-             const string accountSid = "";
-             const string authToken = "";
-
-             TwilioClient.Init(accountSid, authToken);
-
-             var message = MessageResource.Create(
-                 body: $"Dear {student.Name},\n\nYour details have been successfully stored.\n\nBest regards,\nVadaanyaTalentTest",
-                 from: new PhoneNumber("whatsapp:+14155238886"),
-                 to: new PhoneNumber($"whatsapp:{student.PhoneNumber}")
-             );
-
-             _logger.LogInformation($"WhatsApp message sent to {student.PhoneNumber}: {message.Sid}");
-         }*/
 
         private void AddStudentToDatabase(StudentDetails student)
         {
@@ -299,6 +198,152 @@ namespace VadaanyaTalentTest1.Controllers
             }
 
             return null;
+        }
+
+        private int GetStudentCountFromDatabase()
+        {
+            var connectionString = _configuration.GetConnectionString("DefaultConnection");
+            int count = 0;
+
+            using (var connection = new NpgsqlConnection(connectionString))
+            {
+                connection.Open();
+
+                using (var command = new NpgsqlCommand("SELECT COUNT(*) FROM StudentDetails", connection))
+                {
+                    count = Convert.ToInt32(command.ExecuteScalar());
+                }
+            }
+
+            return count;
+        }
+
+        private string GetEmailbody(StudentDetails student)
+        {
+            var body = $@"
+<html>
+<head>
+    <style>
+        body {{
+            font-family: Arial, sans-serif;
+            margin: 0;
+            padding: 0;
+            background-color: #f4f4f4;
+        }}
+        .container {{
+            width: 80%;
+            margin: auto;
+            background-color: #ffffff;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }}
+        .header {{
+            text-align: center;
+            margin-bottom: 20px;
+	    background-color: #36622b;
+        }}
+        .header img {{
+            width: 50%;
+            height: auto;
+            background-color: #36622b;
+            display: flex;
+        }}
+        .content p {{
+            font-size: 12px;
+            line-height: 1.6;
+            margin:8px 0 8px 0;
+        }}
+        table {{
+            width: 30%;
+            border-collapse: collapse;
+            margin-top: 1px;
+        }}
+        table, th, td {{
+            border: 1px solid black;
+        }}
+        th, td {{
+            padding: 3px;
+            text-align: left;
+            font-size: 11px;
+        }}
+        tr:nth-child(even) {{
+            background-color: #f2f2f2;
+        }}
+        .footer {{
+            margin-top: 20px;
+            font-size: 11px;
+            color: #555;
+        }}
+        .footer a {{
+            color: #36622b;
+            text-decoration: none;
+        }}
+    </style>
+</head>
+<body>
+    <div class=""container"">
+        <div class=""header"">
+            <img src=""https://vadaanya.org/wp-content/uploads/2019/06/Logo.png"" alt=""Vadaanya Logo"">
+        </div>
+        <div class=""content"">
+            <p>Dear {student.studentName},</p>
+            <p>Thank you for registering for Vadaanya’s DSC Talent Test 2024
+            <br>Your application number is {student.applicationNumber}.</p>
+            <p>Your registration details are as follows:</p>
+            <table>
+                <tr>
+                    <td>Aadhaar Number:</td>
+                    <td>{student.aadhaarNumber}</td>
+                </tr>
+                <tr>
+                    <td>Student Name:</td>
+                    <td>{student.studentName}</td>
+                </tr>
+                <tr>
+                    <td>Father Name:</td>
+                    <td>{student.fatherName}</td>
+                </tr>
+                <tr>
+                    <td>Gender:</td>
+                    <td>{student.gender}</td>
+                </tr>
+                <tr>
+                    <td>Mobile Number:</td>
+                    <td>{student.mobileNumber}</td>
+                </tr>
+                <tr>
+                    <td>Category:</td>
+                    <td>{student.caste}</td>
+                </tr>
+                <tr>
+                    <td>District:</td>
+                    <td>{student.district}</td>
+                </tr>
+                <tr>
+                    <td>Mandal:</td>
+                    <td>{student.mandal}</td>
+                </tr>
+                <tr>
+                    <td>DOB:</td>
+                    <td>{student.dob}</td>
+                </tr>
+                <tr>
+                    <td>Email ID:</td>
+                    <td>{student.email}</td>
+                </tr>
+            </table>
+            <p>******This is an auto-generated mail. Kindly do not reply to this email.*******
+            <br>Kindly reach out to <a href=""mailto:vadaanyadsc2024@gmail.com"">vadaanyadsc2024@gmail.com</a> for any concerns.</p>
+        </div>
+        <div class=""footer"">
+            <p>Best regards,<br>Team Vadaanya</p>
+            <p><a href='http://vadaanya.org/'>Visit our official website for details regarding exam and syllabus</a></p>
+        </div>
+    </div>
+</body>
+</html>";
+            return body;
         }
     }
 }
