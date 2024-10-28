@@ -46,7 +46,7 @@ namespace VadaanyaTalentTest1.Controllers
         public ActionResult<StudentDetails> Post(StudentDetails student)
         {
             int studentCount = GetStudentCountFromDatabase();
-            if (studentCount >= Convert.ToInt32(_configuration["StudentLimit"]))
+            if (studentCount >= Convert.ToInt32(Environment.GetEnvironmentVariable("STUDENT_LIMIT")))
             {
                 return StatusCode(403, "Student limit reached. Cannot add more students.");
             }
@@ -60,20 +60,67 @@ namespace VadaanyaTalentTest1.Controllers
                 return Conflict("Student with the same Aadhaar number, mobile number, or email already exists.");
             }
 
-            student.applicationNumber = 2912240000 + _studentDetails.Count+1;
+            student.applicationNumber = 2912240000 + studentCount + 1;
             _studentDetails.Add(student);
-            //AddStudentToDatabase(student);
-            // Send email asynchronously without waiting for it
+            AddStudentToExcel(student);
+            AddStudentToDatabase(student);
             SendEmail(student);
             return Ok(student);
         }
 
+        private void AddStudentToExcel(StudentDetails student)
+        {
+            var filePath = "StudentDetails.xlsx";
+            FileInfo fileInfo = new FileInfo(filePath);
+
+            using (ExcelPackage package = new ExcelPackage(fileInfo))
+            {
+                ExcelWorksheet worksheet;
+                if (fileInfo.Exists)
+                {
+                    worksheet = package.Workbook.Worksheets[0];
+                }
+                else
+                {
+                    worksheet = package.Workbook.Worksheets.Add("StudentDetails");
+                    worksheet.Cells[1, 1].Value = "AadhaarNumber";
+                    worksheet.Cells[1, 2].Value = "StudentName";
+                    worksheet.Cells[1, 3].Value = "FatherName";
+                    worksheet.Cells[1, 4].Value = "Gender";
+                    worksheet.Cells[1, 5].Value = "MobileNumber";
+                    worksheet.Cells[1, 6].Value = "District";
+                    worksheet.Cells[1, 7].Value = "Mandal";
+                    worksheet.Cells[1, 8].Value = "Dob";
+                    worksheet.Cells[1, 9].Value = "Email";
+                    worksheet.Cells[1, 10].Value = "TetScore";
+                    worksheet.Cells[1, 11].Value = "Caste";
+                    worksheet.Cells[1, 12].Value = "ApplicationNumber";
+                }
+
+                int row = worksheet.Dimension?.Rows + 1 ?? 2;
+                worksheet.Cells[row, 1].Value = student.aadhaarNumber;
+                worksheet.Cells[row, 2].Value = student.studentName;
+                worksheet.Cells[row, 3].Value = student.fatherName;
+                worksheet.Cells[row, 4].Value = student.gender;
+                worksheet.Cells[row, 5].Value = student.mobileNumber;
+                worksheet.Cells[row, 6].Value = student.district;
+                worksheet.Cells[row, 7].Value = student.mandal;
+                worksheet.Cells[row, 8].Value = student.dob;
+                worksheet.Cells[row, 9].Value = student.email;
+                worksheet.Cells[row, 10].Value = student.testScore;
+                worksheet.Cells[row, 11].Value = student.caste;
+                worksheet.Cells[row, 12].Value = student.applicationNumber;
+
+                package.Save();
+            }
+        }
+
         private void SendEmail(StudentDetails student)
         {
-            var fromAddress = new MailAddress(_configuration["EmailSettings:FromAddress"], "VadaanyaOrg");
+            var fromAddress = new MailAddress(Environment.GetEnvironmentVariable("EMAIL_ID"), "Vadaanya Janaa Society");
             var toAddress = new MailAddress(student.email, student.studentName);
-            var fromPassword = _configuration["EmailSettings:Password"];
-            const string subject = "Student Details Submission Confirmation";
+            var fromPassword = Environment.GetEnvironmentVariable("EMAIL_PASSWORD");
+            string subject = $"Student Details Submission Confirmation-{student.applicationNumber}";
             string body = GetEmailbody(student);
             //string body = $"Dear { student.studentName},\n\nThank you for registering for Vadaanya’s DSC Talent Test 2024.\n Your application number is {student.applicationNumber}.\n\n******This is an auto-generated mail. Kindly do not reply to this email.*******\nKindly reach out to vadaanyadsc2024@gmail.com for any concerns.\n\nBest regards,\nTeam Vadaanya";
 
@@ -100,13 +147,14 @@ namespace VadaanyaTalentTest1.Controllers
 
         private void AddStudentToDatabase(StudentDetails student)
         {
-            var connectionString = _configuration["ConnectionStrings:DefaultConnection"];
+            //var connectionString = _configuration["ConnectionStrings:DefaultConnection"];
+            var connectionString = Environment.GetEnvironmentVariable("CONNECTION_STRING");
 
             using (var connection = new NpgsqlConnection(connectionString))
             {
                 connection.Open();
 
-                using (var command = new NpgsqlCommand("INSERT INTO StudentDetails (aadhaarNumber, studentName, fatherName, gender, mobileNumber, district, mandal, dob, email,tetscore,category) VALUES (@aadhaarNumber, @studentName, @fatherName, @gender, @mobileNumber, @district, @mandal, @dob, @email,@tetscore,@category)", connection))
+                using (var command = new NpgsqlCommand("INSERT INTO StudentDetails (aadhaarNumber, studentName, fatherName, gender, mobileNumber, district, mandal, dob, email,testscore,caste,applicationNumber) VALUES (@aadhaarNumber, @studentName, @fatherName, @gender, @mobileNumber, @district, @mandal, @dob, @email,@testscore,@caste,@applicationNumber)", connection))
                 {
                     command.Parameters.AddWithValue("aadhaarNumber", student.aadhaarNumber);
                     command.Parameters.AddWithValue("studentName", student.studentName);
@@ -117,8 +165,9 @@ namespace VadaanyaTalentTest1.Controllers
                     command.Parameters.AddWithValue("mandal", student.mandal);
                     command.Parameters.AddWithValue("dob", student.dob);
                     command.Parameters.AddWithValue("email", student.email);
-                    command.Parameters.AddWithValue("tetscore", student.testScore);
-                    command.Parameters.AddWithValue("category", student.caste);
+                    command.Parameters.AddWithValue("testscore", student.testScore);
+                    command.Parameters.AddWithValue("caste", student.caste);
+                    command.Parameters.AddWithValue("applicationNumber", student.applicationNumber);
 
 
                     command.ExecuteNonQuery();
@@ -128,10 +177,11 @@ namespace VadaanyaTalentTest1.Controllers
 
         private StudentDetails GetStudentFromDatabase(long aadhaarNumber, string mobileNumber, string email)
         {
-            var connectionString = _configuration.GetConnectionString("DefaultConnection");
+            //var connectionString = _configuration.GetConnectionString("DefaultConnection");
+            var connectionString = Environment.GetEnvironmentVariable("CONNECTION_STRING");
 
             string dbcommand;
-            string initialdbcommand = "SELECT aadhaarNumber, studentName, fatherName, gender, mobileNumber, district, mandal, dob, email, tetscore, category FROM StudentDetails WHERE ";
+            string initialdbcommand = "SELECT aadhaarNumber, studentName, fatherName, gender, mobileNumber, district, mandal, dob, email, testscore, caste,applicationNumber FROM StudentDetails WHERE ";
             if (aadhaarNumber != 0 && String.IsNullOrEmpty(mobileNumber) && String.IsNullOrEmpty(email))
             {
                 dbcommand = initialdbcommand + "aadhaarNumber = @aadhaarNumber";
@@ -190,7 +240,8 @@ namespace VadaanyaTalentTest1.Controllers
                                 dob = reader.GetString(7),
                                 email = reader.GetString(8),
                                 testScore = reader.IsDBNull(9) ? null : reader.GetString(9),
-                                caste = reader.GetString(10)
+                                caste = reader.GetString(10),
+                                applicationNumber = reader.GetInt64(11),
                             };
                         }
                     }
@@ -202,7 +253,8 @@ namespace VadaanyaTalentTest1.Controllers
 
         private int GetStudentCountFromDatabase()
         {
-            var connectionString = _configuration.GetConnectionString("DefaultConnection");
+            //var connectionString = _configuration.GetConnectionString("DefaultConnection");
+            var connectionString = Environment.GetEnvironmentVariable("CONNECTION_STRING");
             int count = 0;
 
             using (var connection = new NpgsqlConnection(connectionString))
@@ -333,12 +385,12 @@ namespace VadaanyaTalentTest1.Controllers
                     <td>{student.email}</td>
                 </tr>
             </table>
-            <p>******This is an auto-generated mail. Kindly do not reply to this email.*******
-            <br>Kindly reach out to <a href=""mailto:vadaanyadsc2024@gmail.com"">vadaanyadsc2024@gmail.com</a> for any concerns.</p>
+            <p><b>******This is an auto-generated mail. Kindly do not reply to this email.*******</b>
+            <br>For any inquiries or concerns,please contact <a href=""mailto:vadaanyadsc2024@gmail.com"">vadaanyadsc2024@gmail.com</a></p>
         </div>
         <div class=""footer"">
             <p>Best regards,<br>Team Vadaanya</p>
-            <p><a href='http://vadaanya.org/'>Visit our official website for details regarding exam and syllabus</a></p>
+            <!--<p><a href='http://vadaanya.org/'>Visit our official website for details regarding exam and syllabus</a></p>-->
         </div>
     </div>
 </body>
