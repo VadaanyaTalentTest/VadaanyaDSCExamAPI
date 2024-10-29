@@ -64,7 +64,21 @@ namespace VadaanyaTalentTest1.Controllers
             _studentDetails.Add(student);
             AddStudentToExcel(student);
             AddStudentToDatabase(student);
-            SendEmail(student);
+
+            // Run the email sending task in the background
+            Task.Run(async () =>
+            {
+                try
+                {
+                    await SendEmailAsync(student);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"An error occurred while sending the email: {ex.Message}");
+                }
+            });
+
+            //SendEmail(student);
             return Ok(student);
         }
 
@@ -142,6 +156,35 @@ namespace VadaanyaTalentTest1.Controllers
             })
             {
                 smtp.Send(message); ;
+            }
+        }
+
+        private async Task SendEmailAsync(StudentDetails student)
+        {
+            var fromAddress = new MailAddress(Environment.GetEnvironmentVariable("EMAIL_ID"), "Vadaanya Janaa Society");
+            var toAddress = new MailAddress(student.email, student.studentName);
+            var fromPassword = Environment.GetEnvironmentVariable("EMAIL_PASSWORD");
+            string subject = $"Student Details Submission Confirmation-{student.applicationNumber}";
+            string body = GetEmailbody(student);
+
+            var smtp = new SmtpClient
+            {
+                Host = "smtp.gmail.com",
+                Port = 587,
+                EnableSsl = true,
+                DeliveryMethod = SmtpDeliveryMethod.Network,
+                UseDefaultCredentials = false,
+                Credentials = new System.Net.NetworkCredential(fromAddress.Address, fromPassword)
+            };
+
+            using (var message = new MailMessage(fromAddress, toAddress)
+            {
+                Subject = subject,
+                Body = body,
+                IsBodyHtml = true // Enable HTML formatting
+            })
+            {
+                await smtp.SendMailAsync(message);
             }
         }
 
