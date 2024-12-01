@@ -1,6 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 
-namespace VadaanyaTalentTest1
+namespace VadaanyaTalentTest1.Models
 {
     public class StudentDetails
     {

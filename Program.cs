@@ -15,7 +15,8 @@ builder.Services.AddCors(options =>
                       {
                           policy.WithOrigins("*")
                           .AllowAnyHeader()
-                          .AllowAnyMethod();
+                          .AllowAnyMethod()
+                          .WithExposedHeaders("X-File-Name");
                       });
 });
 
