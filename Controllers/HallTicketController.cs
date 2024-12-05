@@ -12,9 +12,12 @@ namespace VadaanyaTalentTest1.Controllers
         private readonly IConfiguration _configuration;
         private static readonly string excelSheetFileName = "DSCAPPS";
         private static readonly string templateHallTicketFileName = "HallTicket-DSC2024";
-        private string excelSheetPath = Path.Combine(Directory.GetCurrentDirectory(), "Static", excelSheetFileName + ".xlsx");
-        private string inPath = Path.Combine(Directory.GetCurrentDirectory(), "Static", templateHallTicketFileName + ".pdf");
-        private string outPath = Path.Combine(Directory.GetCurrentDirectory(), "Static", templateHallTicketFileName + "_GENERATED.pdf");
+        //private string excelSheetPath = Path.Combine(Directory.GetCurrentDirectory(), "Static", excelSheetFileName + ".xlsx");
+        private string excelSheetPath = Path.Combine(Directory.GetCurrentDirectory(), "Static", excelSheetFileName + ".xlsx").Replace(Path.DirectorySeparatorChar == '\\' ? '\\' : '/', Path.DirectorySeparatorChar);
+        //private string inPath = Path.Combine(Directory.GetCurrentDirectory(), "Static", templateHallTicketFileName + ".pdf");
+        private string inPath = Path.Combine(Directory.GetCurrentDirectory(), "Static", templateHallTicketFileName + ".pdf").Replace(Path.DirectorySeparatorChar == '\\' ? '\\' : '/', Path.DirectorySeparatorChar);
+        //private string outPath = Path.Combine(Directory.GetCurrentDirectory(), "Static", templateHallTicketFileName + "_GENERATED.pdf");
+        private string outPath = Path.Combine(Directory.GetCurrentDirectory(), "Static", templateHallTicketFileName + "_GENERATED.pdf").Replace(Path.DirectorySeparatorChar == '\\' ? '\\' : '/', Path.DirectorySeparatorChar);
         private HallticketHandler _hallticketHandler;
 
 
