@@ -19,4 +19,16 @@
     <Folder Include="Static\" />
   </ItemGroup>
 
+  <ItemGroup>
+    <None Update="Static\DSCAPPS.xlsx">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="Static\HallTicket-DSC2024.pdf">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <None Update="Static\HallTicket-DSC2024_GENERATED.pdf">
+      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+  </ItemGroup>
+
 </Project>
