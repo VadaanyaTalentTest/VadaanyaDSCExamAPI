@@ -54,7 +54,7 @@ namespace VadaanyaTalentTest1.Controllers
                 }
                 memory.Position = 0;
 
-                var downloadFileName = applicant["ApplicationNumber"] + "_HALLTICKET" + ".pdf";
+                var downloadFileName = applicant["APPLICATION NUMBER"] + "_HALLTICKET" + ".pdf";
 
                 Response.Headers.Append("X-File-Name", downloadFileName);
 
