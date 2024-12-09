@@ -36,7 +36,7 @@ namespace VadaanyaTalentTest1.Handlers
             if (applicationNumber != 0 && aadhaarNumber == 0)
                 filterCriteria.Add("APPLICATION NUMBER", applicationNumber.ToString());            
             else if(applicationNumber == 0 && aadhaarNumber != 0)
-                filterCriteria.Add("AADHAAR NUMBER", aadhaarNumber.ToString());
+                filterCriteria.Add("AADHAR NUMBER", aadhaarNumber.ToString());
 
             DateTime date = DateTime.ParseExact(dob, "yyyy-MM-dd", CultureInfo.InvariantCulture);
             string formattedDob = date.ToString("M/d/yyyy");
