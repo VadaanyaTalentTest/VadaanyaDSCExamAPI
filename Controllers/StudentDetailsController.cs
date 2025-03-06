@@ -64,7 +64,7 @@ namespace VadaanyaTalentTest1.Controllers
             student.applicationNumber = 2912240000 + studentCount + 1;
             _studentDetails.Add(student);
             AddStudentToExcel(student);
-            AddStudentToDatabase(student);
+            //AddStudentToDatabase(student);
 
             // Run the email sending task in the background
             Task.Run(async () =>
